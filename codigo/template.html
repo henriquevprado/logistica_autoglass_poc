@@ -1,0 +1,458 @@
+<title>Controle de Entregas CD–Loja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/*__LEAFLET_CSS__*/
+/* Layout: sala de controle — faixa de indicadores, mapa + fila de decisões, chegadas e tabela de viagens */
+:root{
+  /* tema único claro e neutro (cinza/branco), independente do tema do sistema */
+  --bg:#F3F3F2; --surface:#FFFFFF; --surface-2:#F6F6F5; --ink:#1E1F21; --muted:#6B6D70; --line:#E1E1DF;
+  --accent:#1F6F8B; --accent-ink:#FFFFFF; --map:#FAFAF9; --road1:#C4C5C6; --road2:#DEDFDF; --route:#1F6F8B;
+  --ok:#2C7A4B; --ok-bg:#E8F3EC; --warn:#A66B12; --warn-bg:#FBF1DF; --late:#BE3B27; --late-bg:#FBE8E4;
+  --wx:#5A4BC0; --wx-bg:#EFEDFA; --idle:#6E7072; --idle-bg:#EEEEED;
+  --inmet-y:#E2B93B; --inmet-o:#E07F25; --inmet-r:#CF3A2C;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --r:6px; color-scheme:light;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-body);margin:0}
+.wrap{padding-inline:16px;padding-block:14px 32px;max-width:1500px;margin:0 auto;display:grid;gap:14px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* cabeçalho */
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:end;justify-content:space-between}
+.brand .eyebrow{font:500 11px/1 var(--f-body);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.brand h1{font:700 clamp(22px,2.6vw,30px)/1.1 var(--f-display);margin:6px 0 0;text-wrap:balance;letter-spacing:.005em}
+.clock{display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 12px;min-width:0}
+.clock .now{display:grid;line-height:1.05}
+.clock .now small{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.clock .now b{font:500 22px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.clock input[type=range]{width:min(320px,52vw);accent-color:var(--accent)}
+.btn{border:1px solid var(--line);background:var(--surface-2);border-radius:5px;padding:6px 10px;font-size:13px}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.seg button{border:0;background:var(--surface-2);padding:6px 9px;font-size:12px}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--surface)}
+
+/* indicadores */
+.kpis{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;text-align:left;display:grid;gap:2px;min-width:0}
+.kpi b{font:600 30px/1 var(--f-display);color:var(--c,var(--ink))}
+.kpi span{font-size:12.5px;color:var(--muted)}
+.kpi span i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c,var(--ink));margin-right:6px;vertical-align:1px}
+.kpi[aria-pressed=true]{border-color:var(--c,var(--ink));box-shadow:inset 0 0 0 1px var(--c,var(--ink))}
+.kpi.lead{background:var(--surface)}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* área principal */
+.main{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:14px;min-height:0}
+@media (max-width:1000px){.main{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.panel h2{font:600 15px/1.2 var(--f-display);letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--muted)}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 14px 8px}
+.panel-head p{margin:0;font-size:12px;color:var(--muted)}
+.mappanel{display:flex;flex-direction:column}
+.mapbox{position:relative;flex:1;height:min(64vh,620px);min-height:380px;border-radius:var(--r);overflow:hidden}
+@media (min-width:1001px){.mapbox{height:auto;min-height:min(64vh,620px)}}
+#map{position:absolute;inset:0;background:var(--map)}
+.legend{position:absolute;left:10px;bottom:10px;z-index:500;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:8px 10px;font-size:11.5px;display:grid;gap:4px;max-width:calc(100% - 20px)}
+.legend .row{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.legend i.sq{border-radius:2px}
+.legend i.poly{border-radius:2px;opacity:.75}
+.mapnote{position:absolute;right:10px;bottom:10px;z-index:500;font-size:10.5px;color:var(--muted);background:var(--surface);padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
+.leaflet-container{font-family:var(--f-body);background:var(--map)}
+.leaflet-control-zoom a{background:var(--surface)!important;color:var(--ink)!important;border-color:var(--line)!important}
+.leaflet-tooltip{background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:none;font-size:12px}
+.leaflet-tooltip-top:before{border-top-color:var(--line)}
+.city{font:500 11px/1 var(--f-body);color:var(--muted);white-space:nowrap;letter-spacing:.02em;text-shadow:0 0 3px var(--map),0 0 3px var(--map)}
+.site{display:grid;place-items:center}
+.site span{display:block;width:10px;height:10px;border-radius:50%;background:var(--surface);border:2px solid var(--ink)}
+.site.cd span{width:13px;height:13px;border-radius:2px;background:var(--ink)}
+.truck{display:grid;place-items:center}
+.truck svg{overflow:visible;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.truck.sel svg{transform:scale(1.25)}
+
+/* fila de ação */
+.side{display:flex;flex-direction:column;max-height:calc(min(64vh,620px) + 48px);min-height:420px}
+.queue{overflow:auto;padding:0 10px 10px;display:grid;gap:8px;align-content:start}
+.item{display:grid;gap:4px;text-align:left;background:var(--sev-bg);border:1px solid transparent;border-left:4px solid var(--sev);border-radius:5px;padding:9px 11px}
+.item:hover{border-color:var(--sev)}
+.item .t{font-weight:600;color:var(--sev)}
+.item .d{font-size:12.5px;color:var(--ink)}
+.item .m{font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px}
+.empty{padding:18px 14px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--cbg);color:var(--c);white-space:nowrap}
+.chip:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.s-ok{--c:var(--ok);--cbg:var(--ok-bg);--sev:var(--ok);--sev-bg:var(--ok-bg)}
+.s-warn{--c:var(--warn);--cbg:var(--warn-bg);--sev:var(--warn);--sev-bg:var(--warn-bg)}
+.s-late{--c:var(--late);--cbg:var(--late-bg);--sev:var(--late);--sev-bg:var(--late-bg)}
+.s-wx{--c:var(--wx);--cbg:var(--wx-bg);--sev:var(--wx);--sev-bg:var(--wx-bg)}
+.s-idle{--c:var(--idle);--cbg:var(--idle-bg);--sev:var(--idle);--sev-bg:var(--idle-bg)}
+
+/* detalhe */
+.detail{overflow:auto;padding:0 14px 14px;display:grid;gap:12px;align-content:start}
+.detail .back{justify-self:start}
+.detail h3{font:700 22px/1.1 var(--f-display);margin:0}
+.detail .sub{color:var(--muted);font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.times div{background:var(--surface-2);border-radius:5px;padding:8px 10px;display:grid}
+.times small{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.times b{font:500 18px/1.2 var(--f-mono);font-variant-numeric:tabular-nums}
+.times em{font-style:normal;font-size:11.5px;color:var(--muted)}
+.progress{display:grid;gap:4px}
+.bar{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:var(--accent)}
+.progress .lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.wxbox{border:1px solid var(--wx);background:var(--wx-bg);border-radius:5px;padding:10px 12px;display:grid;gap:3px}
+.wxbox b{color:var(--wx)}
+.wxbox p{margin:0;font-size:12.5px}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px;margin:0}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0}
+.decide{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.decide h4{margin:0;font:600 14px/1.2 var(--f-display);letter-spacing:.05em;text-transform:uppercase}
+.decide .opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.decide .opts button{border:1px solid var(--line);background:var(--surface-2);border-radius:5px;padding:8px;text-align:left;font-size:13px}
+.decide .opts button[aria-pressed=true]{border-color:var(--accent);background:var(--accent);color:var(--accent-ink);font-weight:600}
+.decide .who{display:flex;gap:8px;align-items:center;font-size:12.5px;flex-wrap:wrap}
+.decide .log{font-size:12px;color:var(--muted);margin:0;padding-left:16px}
+.events{margin:0;padding:0;list-style:none;display:grid;gap:5px;font-size:12.5px}
+.events li{display:grid;grid-template-columns:48px 1fr;gap:8px}
+.events time{font-family:var(--f-mono);color:var(--muted)}
+
+/* chegadas */
+.arrivals{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(210px,1fr);gap:8px;overflow-x:auto;padding:0 14px 14px}
+.arr{background:var(--sev-bg);border:1px solid transparent;border-radius:5px;padding:10px 12px;display:grid;gap:3px;text-align:left}
+.arr:hover{border-color:var(--sev)}
+.arr .dest{font-weight:600;font-size:13px}
+.arr .eta{font:500 26px/1.1 var(--f-mono);font-variant-numeric:tabular-nums;color:var(--sev)}
+.arr .eta small{font-size:12px;color:var(--muted)}
+.arr .st{font-size:12px;color:var(--muted)}
+.arr .st b{color:var(--sev)}
+
+/* tabela */
+.tbl{overflow-x:auto;padding:0 14px 14px}
+table{border-collapse:collapse;width:100%;min-width:980px;font-size:13px}
+th{font:600 11px/1.2 var(--f-body);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);text-align:left;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num{white-space:nowrap}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--surface-2)}
+tbody tr.sel td{background:var(--surface-2);box-shadow:inset 0 1px 0 var(--accent),inset 0 -1px 0 var(--accent)}
+td .od{display:grid}
+td:first-child{white-space:nowrap}
+td .od small{color:var(--muted)}
+.foot{font-size:12px;color:var(--muted);display:grid;gap:4px}
+.foot p{margin:0;max-width:110ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="brand">
+    <div class="eyebrow">Autoglass · prova de conceito Codex · dados simulados</div>
+    <h1>Controle de entregas CD → loja</h1>
+  </div>
+  <div class="clock" role="group" aria-label="Relógio da simulação">
+    <div class="now"><small>Horário da simulação</small><b id="clk">15:00</b></div>
+    <button class="btn primary" id="play" aria-label="Reproduzir">▶ Reproduzir</button>
+    <div class="seg" id="speed" aria-label="Velocidade">
+      <button data-v="1" aria-pressed="false">1 min/s</button>
+      <button data-v="5" aria-pressed="true">5 min/s</button>
+      <button data-v="15" aria-pressed="false">15 min/s</button>
+    </div>
+    <input type="range" id="slider" min="300" max="1439" step="1" value="900" aria-label="Horário">
+    <button class="btn" id="reset">Voltar às 15:00</button>
+  </div>
+</header>
+
+<section class="kpis" id="kpis" aria-label="Indicadores"></section>
+
+<section class="main">
+  <div class="panel mappanel">
+    <div class="mapbox">
+      <div id="map" aria-label="Mapa das viagens"></div>
+      <div class="legend" aria-hidden="true">
+        <div class="row"><span><i style="background:var(--ok)"></i>no prazo</span><span><i style="background:var(--warn)"></i>atenção</span><span><i style="background:var(--late)"></i>atrasado</span><span><i style="background:var(--idle)"></i>aguardando / entregue</span></div>
+        <div class="row"><span><i style="background:transparent;border:2px solid var(--wx)"></i>sob alerta meteorológico</span><span><i class="sq" style="background:var(--ink)"></i>CD</span><span><i style="background:var(--surface);border:2px solid var(--ink)"></i>loja</span></div>
+        <div class="row"><span>Avisos INMET:</span><span><i class="poly" style="background:var(--inmet-y)"></i>potencial perigo</span><span><i class="poly" style="background:var(--inmet-o)"></i>perigo</span><span><i class="poly" style="background:var(--inmet-r)"></i>grande perigo</span></div>
+      </div>
+      <div class="mapnote">Malha viária TomTom · rotas calculadas pela rede</div>
+    </div>
+  </div>
+  <aside class="panel side" id="side"></aside>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Próximas chegadas</h2><p>Clique para ver a viagem no mapa</p></div>
+  <div class="arrivals" id="arrivals"></div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Todas as viagens de hoje</h2><p id="filterNote"></p></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Viagem</th><th>Origem → destino</th><th>Saída prevista</th><th>Saída real</th><th>Chegada prevista</th><th>Chegada estimada</th><th>Atraso</th><th>Situação</th><th>Clima na rota</th><th>Decisão</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</section>
+
+<section class="foot">
+  <p>Dados simulados para demonstração. As rotas foram calculadas sobre a malha viária fornecida, com velocidade de caminhão (tempo da via × 1,15), descanso de 30 min a cada 4h30 de direção e 10 min de folga contratual. A chegada estimada considera o trecho restante, os descansos previstos e a redução de velocidade dentro de avisos meteorológicos ativos.</p>
+  <p>Situação: no prazo até 15 min de atraso; atenção de 15 a 60 min; atrasado acima de 60 min. Os avisos seguem os níveis do INMET (potencial perigo, perigo, grande perigo), mas as áreas e horários são fictícios.</p>
+</section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const DATA=/*__DATA__*/null;
+const DAY='08/10';
+const NOW0=900;
+const DECISIONS=[['seguir','Seguir viagem'],['aguardar','Aguardar em local seguro'],['desviar','Desviar rota'],['retornar','Retornar à origem']];
+const CITIES=[['Vitória',-40.31,-20.32],['Belo Horizonte',-43.94,-19.92],['Rio de Janeiro',-43.2,-22.91],['Juiz de Fora',-43.35,-21.76],['Campos dos Goytacazes',-41.32,-21.75],['Governador Valadares',-41.95,-18.85],['Uberaba',-47.93,-19.75],['Patos de Minas',-46.52,-18.58],['Linhares',-40.07,-19.39],['Cachoeiro de Itapemirim',-41.11,-20.85],['Ipatinga',-42.54,-19.47],['Divinópolis',-44.89,-20.14],['Manhuaçu',-42.03,-20.26],['Araxá',-46.94,-19.59],['Petrópolis',-43.18,-22.51],['Uberlândia',-48.28,-18.92],['Muriaé',-42.37,-21.13]];
+
+let T=NOW0, playing=false, speed=5, selected=null, filter=null, decisions={};
+try{decisions=JSON.parse(localStorage.getItem('ag-decisoes')||'{}')}catch(e){decisions={}}
+const saveDec=()=>{try{localStorage.setItem('ag-decisoes',JSON.stringify(decisions))}catch(e){}};
+const $=s=>document.querySelector(s);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const hhmm=m=>{m=Math.round(m);const d=Math.floor(m/1440);m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')+(d>0?' +1d':'')};
+const dur=m=>{m=Math.round(Math.abs(m));return m<60?m+' min':Math.floor(m/60)+'h'+String(m%60).padStart(2,'0')};
+const signed=m=>(m>0?'+':m<0?'−':'')+dur(m);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const alertById=Object.fromEntries(DATA.alerts.map(a=>[a.id,a]));
+const SEVRANK={amarelo:1,laranja:2,vermelho:3};
+
+function interp(xs,ys,x){if(x<=xs[0])return ys[0];const n=xs.length;if(x>=xs[n-1])return ys[n-1];let lo=0,hi=n-1;while(hi-lo>1){const m=(lo+hi)>>1;if(xs[m]<=x)lo=m;else hi=m}return ys[lo]+(ys[hi]-ys[lo])*(x-xs[lo])/(xs[hi]-xs[lo])}
+DATA.trips.forEach(t=>{t._k=t.pace.map(p=>p[0]);t._t=t.pace.map(p=>p[1]);t.nomTotal=t._t[t._t.length-1];t.plannedDur=t.chegada_prevista-t.saida_prevista});
+const nominal=(t,km)=>interp(t._k,t._t,km);
+function posAt(t,km){const ck=t.ck,c=t.coords;let i=1;while(i<ck.length-1&&ck[i]<km)i++;const f=ck[i]>ck[i-1]?Math.max(0,Math.min(1,(km-ck[i-1])/(ck[i]-ck[i-1]))):0;const a=c[i-1],b=c[i];return{lon:a[0]+(b[0]-a[0])*f,lat:a[1]+(b[1]-a[1])*f,hdg:Math.atan2((b[0]-a[0])*Math.cos(a[1]*Math.PI/180),b[1]-a[1])*180/Math.PI,i}}
+const alertActive=(a,tm)=>tm>=a.ini&&tm<=a.fim;
+
+function stateAt(t,tm){
+  const s={trip:t};
+  if(tm<t.saida_real){
+    s.fase=tm<=t.saida_prevista?'aguardando':'saida_atrasada';
+    s.km=0; s.eta=Math.max(tm,t.saida_prevista)+t.plannedDur;
+    if(s.fase==='saida_atrasada') s.atrasoSaida=tm-t.saida_prevista;
+  }else if(tm>=t.chegada_real){
+    s.fase='entregue'; s.km=t.km; s.eta=t.chegada_real;
+  }else{
+    const sg=t.segs.find(g=>tm>=g[0]&&tm<g[1])||t.segs[t.segs.length-1];
+    s.seg=sg; s.kind=sg[4];
+    s.km=sg[1]>sg[0]?sg[2]+(sg[3]-sg[2])*(tm-sg[0])/(sg[1]-sg[0]):sg[2];
+    const drv=nominal(t,s.km), rem=t.nomTotal-drv;
+    const rests=t.rest_at.filter(x=>x>drv+0.5).length*t.rest_min;
+    let extra=0;
+    for(const z of t.zonas){const a=alertById[z.alerta];if(z.km1<=s.km)continue;
+      const k0=Math.max(z.km0,s.km);const reach=tm+(nominal(t,k0)-drv);
+      if(alertActive(a,tm)||(reach>=a.ini&&reach<=a.fim)){const tz=nominal(t,z.km1)-nominal(t,k0);extra+=tz*(1/({amarelo:.85,laranja:.57,vermelho:.45}[a.sev])-1)}}
+    s.eta=tm+rem+rests+extra+(s.kind==='r'||s.kind==='s'?Math.max(0,sg[1]-tm)*(s.kind==='r'?1:0):0);
+    s.fase=s.kind==='s'?'parado':(s.kind==='r'?'descanso':'em_rota');
+    if(s.kind==='s') s.paradoHa=tm-sg[0], s.motivo=sg[5];
+  }
+  s.atraso=s.eta-t.chegada_prevista;
+  s.sit=s.atraso>60?'atrasado':s.atraso>15?'atencao':'no_prazo';
+  // clima
+  s.wx=null;
+  if(s.fase!=='entregue'){
+    for(const z of t.zonas){const a=alertById[z.alerta];
+      let rel=null;
+      if(s.km>=z.km0&&s.km<=z.km1&&alertActive(a,tm)&&s.fase!=='aguardando'&&s.fase!=='saida_atrasada') rel='dentro';
+      else if(z.km1>s.km){const drv=nominal(t,s.km);const start=s.fase==='aguardando'||s.fase==='saida_atrasada'?Math.max(tm,t.saida_prevista):tm;const reach=start+(nominal(t,Math.max(z.km0,s.km))-drv);
+        if(reach<=a.fim&&reach+(nominal(t,z.km1)-nominal(t,z.km0))>=a.ini) rel='a_frente', s._reachIn=Math.max(0,reach-tm);}
+      if(rel){const cand={a,rel,z,reachIn:rel==='a_frente'?s._reachIn:0};
+        if(!s.wx||SEVRANK[a.sev]>SEVRANK[s.wx.a.sev]||(SEVRANK[a.sev]===SEVRANK[s.wx.a.sev]&&rel==='dentro'))s.wx=cand}}
+  }
+  s.pos=s.fase==='entregue'?posAt(t,t.km):posAt(t,s.km);
+  return s;
+}
+const SIT={no_prazo:['no prazo','s-ok'],atencao:['atenção','s-warn'],atrasado:['atrasado','s-late']};
+const FASE={aguardando:'aguardando saída',saida_atrasada:'saída atrasada',em_rota:'em rota',parado:'parado',descanso:'em descanso',entregue:'entregue'};
+const sitChip=s=>s.fase==='aguardando'?`<span class="chip s-idle">aguardando saída</span>`:`<span class="chip ${SIT[s.sit][1]}">${SIT[s.sit][0]}</span>`;
+const wxText=w=>w?`${w.rel==='dentro'?'Sob aviso':'Aviso à frente'}: ${w.a.tipo.toLowerCase()} (${w.a.sev})`:'';
+const wxChip=s=>s.wx?`<span class="chip s-wx">${s.wx.rel==='dentro'?'sob aviso':'aviso à frente'} · ${s.wx.a.sev}</span>`:'';
+const truckColor=s=>s.fase==='entregue'||s.fase==='aguardando'?css('--idle'):s.sit==='atrasado'?css('--late'):s.sit==='atencao'?css('--warn'):css('--ok');
+
+/* ---------- mapa ---------- */
+const map=L.map('map',{zoomControl:true,attributionControl:false,preferCanvas:true,zoomSnap:.25,minZoom:5,maxZoom:13});
+const renderer=L.canvas({padding:.3});
+const baseLayers=[];
+function drawBase(){
+  baseLayers.forEach(l=>map.removeLayer(l));baseLayers.length=0;
+  [['2','--road2',1],['1','--road1',1.6]].forEach(([k,c,w])=>{const l=L.polyline(DATA.base[k].map(ln=>ln.map(p=>[p[1],p[0]])),{renderer,color:css(c),weight:w,interactive:false});l.addTo(map);baseLayers.push(l)});
+}
+drawBase();
+CITIES.forEach(([n,lon,lat])=>L.marker([lat,lon],{interactive:false,keyboard:false,icon:L.divIcon({className:'city',html:n,iconSize:null,iconAnchor:[-6,6]})}).addTo(map));
+const routeLayers={},doneLayers={};
+DATA.trips.forEach(t=>{
+  routeLayers[t.id]=L.polyline(t.coords.map(p=>[p[1],p[0]]),{renderer,color:css('--route'),weight:2,opacity:.35}).addTo(map).on('click',()=>select(t.id));
+  doneLayers[t.id]=L.polyline([],{renderer,color:css('--route'),weight:4,opacity:.9,interactive:false}).addTo(map);
+});
+const alertLayers={};
+DATA.alerts.forEach(a=>{alertLayers[a.id]=L.polygon(a.coords.map(p=>[p[1],p[0]]),{renderer,weight:1.5,dashArray:'5 4'}).addTo(map).bindTooltip(`<b>${esc(a.tipo)}</b><br>Aviso ${a.sev} · ${esc(a.nivel)}<br>${hhmm(a.ini)}–${hhmm(a.fim)}`,{sticky:true})});
+DATA.stores.forEach(st=>{const cd=st.caracteristicas!=='LOJA';
+  L.marker([st.lat,st.lon],{icon:L.divIcon({className:'site'+(cd?' cd':''),html:'<span></span>',iconSize:[16,16]}),zIndexOffset:200})
+   .bindTooltip(`<b>${esc(st.cod)}</b> · ${cd?(st.cod==='CL'?'Centro Logístico':'CD'):'Loja'} ${esc(st.municipio)}/${st.uf}<br>${esc(st.logradouro)}${st.numero?', '+st.numero:''} – ${esc(st.bairro)}`,{direction:'top'}).addTo(map)});
+const truckMk={};
+DATA.trips.forEach(t=>{truckMk[t.id]=L.marker([0,0],{zIndexOffset:1000,keyboard:false}).addTo(map).on('click',()=>select(t.id)).bindTooltip('',{direction:'top',offset:[0,-10]})});
+map.fitBounds(L.latLngBounds(DATA.stores.map(s=>[s.lat,s.lon])).pad(.08));
+
+function truckIcon(s,sel){
+  const c=truckColor(s),ring=s.wx?`<circle r="15" fill="none" stroke="${css('--wx')}" stroke-width="3" ${s.wx.rel==='a_frente'?'stroke-dasharray="4 3"':''}/>`:'';
+  const body=s.fase==='parado'||s.fase==='descanso'||s.fase==='aguardando'||s.fase==='saida_atrasada'||s.fase==='entregue'
+    ?`<rect x="-7" y="-7" width="14" height="14" rx="3" fill="${c}" stroke="${css('--surface')}" stroke-width="2"/>`
+    :`<path d="M0,-10 L8,8 L0,4 L-8,8 Z" fill="${c}" stroke="${css('--surface')}" stroke-width="2" stroke-linejoin="round" transform="rotate(${s.pos.hdg.toFixed(0)})"/>`;
+  return L.divIcon({className:'truck'+(sel?' sel':''),html:`<svg width="36" height="36" viewBox="-18 -18 36 36">${ring}${body}</svg>`,iconSize:[36,36]});
+}
+let lastIconKey={};
+function updateMap(states){
+  DATA.alerts.forEach(a=>{const act=alertActive(a,T),soon=!act&&a.ini>T&&a.ini-T<=120;const col=css({amarelo:'--inmet-y',laranja:'--inmet-o',vermelho:'--inmet-r'}[a.sev]);
+    alertLayers[a.id].setStyle({color:col,fillColor:col,fillOpacity:act?.26:soon?.06:0,opacity:act?.9:soon?.6:0,dashArray:act?null:'4 5'})});
+  states.forEach(s=>{const t=s.trip,vis=!filter||matches(s,filter);
+    const m=truckMk[t.id];m.setLatLng([s.pos.lat,s.pos.lon]);
+    const key=[truckColor(s),s.fase,s.wx&&s.wx.rel,Math.round(s.pos.hdg/10),selected===t.id,vis].join('|');
+    if(lastIconKey[t.id]!==key){m.setIcon(truckIcon(s,selected===t.id));lastIconKey[t.id]=key}
+    m.setOpacity(vis?1:.18);
+    m.setTooltipContent(`<b>${t.placa}</b> · ${esc(t.destino.nome)}<br>${FASE[s.fase]} · chegada ${hhmm(s.eta)} (${signed(s.atraso)})`);
+    const sel=selected===t.id;
+    routeLayers[t.id].setStyle({color:css('--route'),weight:sel?4:2,opacity:sel?.55:(vis&&(s.fase!=='entregue')?.3:.1)});
+    if(sel){const i=s.pos.i;const pts=t.coords.slice(0,i).map(p=>[p[1],p[0]]);pts.push([s.pos.lat,s.pos.lon]);doneLayers[t.id].setLatLngs(pts).setStyle({color:css('--route')})}
+    else doneLayers[t.id].setLatLngs([]);
+  });
+}
+
+/* ---------- indicadores ---------- */
+const KPI=[
+  ['viagem','Em viagem',null,s=>['em_rota','parado','descanso'].includes(s.fase)],
+  ['no_prazo','No prazo','--ok',s=>s.fase!=='entregue'&&s.fase!=='aguardando'&&s.sit==='no_prazo'],
+  ['atencao','Atenção','--warn',s=>s.fase!=='entregue'&&s.fase!=='aguardando'&&s.sit==='atencao'],
+  ['atrasado','Atrasado','--late',s=>s.fase!=='entregue'&&s.fase!=='aguardando'&&s.sit==='atrasado'],
+  ['clima','Alerta meteorológico','--wx',s=>!!s.wx],
+  ['aguardando','Aguardando saída','--idle',s=>s.fase==='aguardando'||s.fase==='saida_atrasada'],
+  ['entregue','Entregues hoje','--idle',s=>s.fase==='entregue'],
+];
+const matches=(s,f)=>KPI.find(k=>k[0]===f)[3](s);
+function renderKpis(states){
+  $('#kpis').innerHTML=KPI.map(([id,label,c,fn],i)=>`<button class="kpi${i===0?' lead':''}" data-k="${id}" aria-pressed="${filter===id}" style="${c?`--c:var(${c})`:''}"><b class="num">${states.filter(fn).length}</b><span>${c?'<i></i>':''}${label}</span></button>`).join('');
+}
+$('#kpis').addEventListener('click',e=>{const b=e.target.closest('.kpi');if(!b)return;filter=filter===b.dataset.k?null:b.dataset.k;render(true)});
+
+/* ---------- fila de ação ---------- */
+function actions(states){
+  const out=[];
+  states.forEach(s=>{const t=s.trip;if(s.fase==='entregue')return;
+    if(s.wx&&(s.wx.a.sev!=='amarelo'||s.wx.rel==='dentro')){const a=s.wx.a;
+      out.push({s,score:SEVRANK[a.sev]*10+(s.wx.rel==='dentro'?5:3),cls:'s-wx',t:`${a.tipo} · aviso ${a.sev}`,
+        d:s.wx.rel==='dentro'?`Caminhão dentro da área do aviso (${a.nivel.toLowerCase()}), velocidade reduzida`:(s.wx.reachIn<5?`Aviso começa às ${hhmm(a.ini)} no trecho onde o caminhão está. Decidir se segue, aguarda ou desvia`:`Rota entra na área do aviso em cerca de ${dur(s.wx.reachIn)}. Decidir se segue, aguarda ou desvia`)});}
+    if(s.fase==='parado'&&s.paradoHa>=10) out.push({s,score:24,cls:'s-late',t:`Parada não prevista há ${dur(s.paradoHa)}`,d:s.motivo||'Caminhão parado fora do plano'});
+    if(s.sit==='atrasado'&&s.fase!=='aguardando') out.push({s,score:22,cls:'s-late',t:`Atraso acima da tolerância · ${signed(s.atraso)}`,d:`Chegada estimada ${hhmm(s.eta)} (prevista ${hhmm(t.chegada_prevista)})`});
+    else if(s.sit==='atencao'&&s.fase!=='aguardando') out.push({s,score:12,cls:'s-warn',t:`Atraso em observação · ${signed(s.atraso)}`,d:`Chegada estimada ${hhmm(s.eta)} (prevista ${hhmm(t.chegada_prevista)})`});
+    if(s.fase==='saida_atrasada') out.push({s,score:14,cls:'s-warn',t:`Saída atrasada há ${dur(s.atrasoSaida)}`,d:`Previa sair às ${hhmm(t.saida_prevista)} de ${t.origem.nome}`});
+  });
+  return out.filter(a=>!filter||matches(a.s,filter)).sort((a,b)=>b.score-a.score);
+}
+function renderSide(states){
+  const side=$('#side');
+  if(selected){renderDetail(states.find(s=>s.trip.id===selected));return}
+  const acts=actions(states);
+  side.innerHTML=`<div class="panel-head"><h2>O que exige ação</h2><p>${acts.length} ${acts.length===1?'item':'itens'}</p></div>
+  <div class="queue">${acts.length?acts.map(a=>{const t=a.s.trip,dec=decisions[t.id];return`<button class="item ${a.cls}" data-id="${t.id}">
+    <span class="t">${esc(a.t)}</span><span class="d">${esc(a.d)}</span>
+    <span class="m"><span class="mono">${t.placa}</span><span>${esc(t.origem.cod)} → ${esc(t.destino.nome)}</span>${dec?`<span>Decisão: <b>${esc(DECISIONS.find(x=>x[0]===dec.op)[1].toLowerCase())}</b></span>`:''}</span></button>`}).join(''):'<p class="empty">Nenhuma viagem exige ação neste horário.</p>'}</div>`;
+}
+$('#side').addEventListener('click',e=>{const it=e.target.closest('.item');if(it){select(it.dataset.id);return}
+  if(e.target.closest('.back')){selected=null;render(true);return}
+  const op=e.target.closest('[data-op]');if(op){const id=selected;const who=($('input[name=who]:checked')||{}).value||'loja';
+    if(decisions[id]&&decisions[id].op===op.dataset.op){delete decisions[id]}else decisions[id]={op:op.dataset.op,who,at:T};saveDec();render(true)}});
+
+function renderDetail(s){
+  const t=s.trip,dec=decisions[t.id];
+  const pct=Math.round(100*s.km/t.km);
+  const ev=[];ev.push([t.saida_real<=T?t.saida_real:t.saida_prevista,t.saida_real<=T?`Saiu de ${t.origem.nome}${t.saida_real>t.saida_prevista?` com ${dur(t.saida_real-t.saida_prevista)} de atraso`:''}`:`Saída prevista de ${t.origem.nome}`]);
+  t.segs.forEach(g=>{if(g[0]>T)return;if(g[4]==='r')ev.push([g[0],'Descanso obrigatório (30 min)']);if(g[4]==='s')ev.push([g[0],g[5]||'Parada não prevista'])});
+  let inWx=null;t.segs.forEach(g=>{if(g[0]>T)return;if(g[4]==='w'&&!inWx){inWx=g;ev.push([g[0],'Entrou em área de aviso meteorológico'])}});
+  if(s.fase==='entregue')ev.push([t.chegada_real,`Entregue em ${t.destino.nome}`]);
+  ev.sort((a,b)=>a[0]-b[0]);
+  $('#side').innerHTML=`<div class="panel-head"><button class="btn back">← Fila de ação</button><p class="mono">${t.id}</p></div>
+  <div class="detail">
+    <div><h3>${esc(t.destino.nome)}</h3><div class="sub">${esc(t.origem.nome)} → ${esc(t.destino.nome)} (${t.destino.cod}) · ${esc(t.destino.bairro)}/${t.destino.uf}</div></div>
+    <div class="chips">${sitChip(s)}<span class="chip s-idle">${FASE[s.fase]}</span>${wxChip(s)}</div>
+    <div class="times">
+      <div><small>Saída prevista</small><b>${hhmm(t.saida_prevista)}</b><em>${t.saida_real<=T?'real '+hhmm(t.saida_real):'ainda no pátio'}</em></div>
+      <div><small>Chegada prevista</small><b>${hhmm(t.chegada_prevista)}</b><em>janela contratada</em></div>
+      <div><small>${s.fase==='entregue'?'Chegada real':'Chegada estimada'}</small><b>${hhmm(s.eta)}</b><em>${DAY}</em></div>
+      <div><small>Atraso</small><b style="color:var(--${s.sit==='atrasado'?'late':s.sit==='atencao'?'warn':'ok'})">${s.atraso>0?signed(s.atraso):'sem atraso'}</b><em>${s.atraso<0?dur(s.atraso)+' adiantado':'tolerância 15 min'}</em></div>
+    </div>
+    <div class="progress"><div class="bar"><i style="width:${pct}%"></i></div><div class="lbl"><span>${s.km.toFixed(0)} de ${t.km.toFixed(0)} km (${pct}%)</span><span>faltam ${(t.km-s.km).toFixed(0)} km</span></div></div>
+    ${s.wx?`<div class="wxbox"><b>${s.wx.rel==='dentro'?'Caminhão dentro de área de aviso':'Aviso meteorológico à frente na rota'}</b><p>${esc(s.wx.a.tipo)} · aviso ${s.wx.a.sev} (${esc(s.wx.a.nivel)}) · válido ${hhmm(s.wx.a.ini)}–${hhmm(s.wx.a.fim)}</p><p>${esc(s.wx.a.desc)}</p><p>Trecho afetado: km ${s.wx.z.km0.toFixed(0)} a ${s.wx.z.km1.toFixed(0)} da rota${s.wx.rel==='a_frente'?` · entrada em cerca de ${dur(s.wx.reachIn)}`:''}</p></div>`:''}
+    <dl class="facts"><dt>Placa</dt><dd class="mono">${t.placa}</dd><dt>Transportadora</dt><dd>${esc(t.transportadora)}</dd><dt>Carga</dt><dd>${esc(t.carga)} · ${t.volumes} volumes</dd><dt>Rodovias</dt><dd>${t.vias.join(', ')||'vias urbanas'}</dd><dt>Distância</dt><dd>${t.km.toFixed(0)} km</dd></dl>
+    <div><h4 style="margin:0 0 6px;font:600 14px/1.2 var(--f-display);letter-spacing:.05em;text-transform:uppercase">Linha do tempo</h4><ul class="events">${ev.map(e=>`<li><time>${hhmm(e[0])}</time><span>${esc(e[1])}</span></li>`).join('')}</ul></div>
+    <div class="decide"><h4>Decisão sobre a viagem</h4>
+      <div class="who" role="radiogroup" aria-label="Quem decide"><span>Registrar como:</span>
+        <label><input type="radio" name="who" id="who-loja" value="loja" ${!dec||dec.who==='loja'?'checked':''}> loja de destino</label>
+        <label><input type="radio" name="who" id="who-cd" value="cd" ${dec&&dec.who==='cd'?'checked':''}> centro logístico</label></div>
+      <div class="opts">${DECISIONS.map(([k,l])=>`<button data-op="${k}" aria-pressed="${dec&&dec.op===k}">${l}</button>`).join('')}</div>
+      ${dec?`<ul class="log"><li>${esc(DECISIONS.find(x=>x[0]===dec.op)[1])} · registrado pela ${dec.who==='cd'?'equipe do centro logístico':'loja de destino'} às ${hhmm(dec.at)}</li></ul>`:'<p class="log" style="padding:0">Nenhuma decisão registrada. Clique de novo numa opção para desfazer.</p>'}
+    </div>
+  </div>`;
+}
+
+/* ---------- chegadas e tabela ---------- */
+function cls(s){return s.fase==='aguardando'?'s-idle':SIT[s.sit][1]}
+function renderArrivals(states){
+  const list=states.filter(s=>s.fase!=='entregue'&&(!filter||matches(s,filter))).sort((a,b)=>a.eta-b.eta).slice(0,8);
+  $('#arrivals').innerHTML=list.length?list.map(s=>{const t=s.trip;return`<button class="arr ${cls(s)}" data-id="${t.id}"><span class="dest">${esc(t.destino.nome)}</span>
+   <span class="eta">${hhmm(s.eta)} <small>${DAY}</small></span><span class="st"><b>${s.fase==='aguardando'?'aguardando saída':SIT[s.sit][0]}</b> · ${s.atraso>0?'atraso '+signed(s.atraso):'sem atraso'}${s.wx?' · aviso '+s.wx.a.sev:''}</span>
+   <span class="st mono">${t.placa} · de ${esc(t.origem.cod)}</span></button>`}).join(''):'<p class="empty">Sem chegadas pendentes.</p>';
+}
+$('#arrivals').addEventListener('click',e=>{const b=e.target.closest('.arr');if(b)select(b.dataset.id)});
+const ORDER={atrasado:0,atencao:1,no_prazo:2};
+function renderTable(states){
+  const rows=states.filter(s=>!filter||matches(s,filter)).sort((a,b)=>(a.fase==='entregue')-(b.fase==='entregue')||(a.fase==='aguardando')-(b.fase==='aguardando')||ORDER[a.sit]-ORDER[b.sit]||a.eta-b.eta);
+  $('#filterNote').textContent=filter?`Filtro: ${KPI.find(k=>k[0]===filter)[1].toLowerCase()} · clique no indicador de novo para limpar`:`${states.length} viagens programadas`;
+  $('#rows').innerHTML=rows.map(s=>{const t=s.trip,dec=decisions[t.id];return`<tr data-id="${t.id}" class="${selected===t.id?'sel':''}">
+    <td><div class="od"><span class="mono">${t.id}</span><small class="mono">${t.placa}</small></div></td>
+    <td><div class="od"><span>${esc(t.origem.nome)} → ${esc(t.destino.nome)}</span><small>${t.km.toFixed(0)} km · ${t.vias.slice(0,2).join(', ')||'urbano'}</small></div></td>
+    <td class="num">${hhmm(t.saida_prevista)}</td><td class="num">${t.saida_real<=T?hhmm(t.saida_real):'—'}</td>
+    <td class="num">${hhmm(t.chegada_prevista)}</td><td class="num">${hhmm(s.eta)}${s.fase==='entregue'?' ✓':''}</td>
+    <td class="num">${s.atraso>0?signed(s.atraso):'—'}</td><td>${sitChip(s)} <small style="color:var(--muted)">${FASE[s.fase]}</small></td>
+    <td>${wxChip(s)||'<small style="color:var(--muted)">sem aviso</small>'}</td>
+    <td>${dec?esc(DECISIONS.find(x=>x[0]===dec.op)[1]):'<small style="color:var(--muted)">—</small>'}</td></tr>`}).join('');
+}
+$('#rows').addEventListener('click',e=>{const r=e.target.closest('tr');if(r)select(r.dataset.id)});
+
+function select(id){selected=selected===id?null:id;render(true);
+  if(selected){const t=DATA.trips.find(x=>x.id===id);map.flyToBounds(L.latLngBounds(t.coords.map(p=>[p[1],p[0]])).pad(.25),{duration:.6,maxZoom:11})}}
+
+/* ---------- relógio ---------- */
+let lastMin=-1;
+function render(force){
+  const states=DATA.trips.map(t=>stateAt(t,T));
+  $('#clk').textContent=hhmm(T);$('#slider').value=Math.round(T);
+  updateMap(states);
+  const m=Math.floor(T);
+  if(force||m!==lastMin){lastMin=m;renderKpis(states);renderArrivals(states);renderTable(states);
+    const ae=document.activeElement;const keep=selected&&ae&&$('#side').contains(ae);if(!keep||force)renderSide(states)}
+}
+$('#slider').addEventListener('input',e=>{T=+e.target.value;render(true)});
+$('#reset').addEventListener('click',()=>{T=NOW0;setPlay(false);render(true)});
+$('#speed').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;speed=+b.dataset.v;[...$('#speed').children].forEach(x=>x.setAttribute('aria-pressed',x===b))});
+function setPlay(p){playing=p;$('#play').textContent=p?'❚❚ Pausar':'▶ Reproduzir';$('#play').setAttribute('aria-label',p?'Pausar':'Reproduzir');if(p){last=performance.now();requestAnimationFrame(tick)}}
+$('#play').addEventListener('click',()=>{if(T>=1439)T=300;setPlay(!playing)});
+let last=0,acc=0;
+function tick(now){if(!playing)return;const dt=(now-last)/1000;last=now;T=Math.min(1439,T+dt*speed);acc+=dt;
+  if(acc>.08){acc=0;render(false)}if(T>=1439){setPlay(false);render(true);return}requestAnimationFrame(tick)}
+function retheme(){drawBase();lastIconKey={};render(true)}
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',retheme)}catch(e){}
+new MutationObserver(retheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+render(true);
+</script>
